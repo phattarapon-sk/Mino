@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { SummaryMode } from '@/lib/typhoon';
 
-const MAX_CHUNK_SIZE_MB = 25;
+const MAX_CHUNK_SIZE_MB = 20;
 const MAX_CHUNK_SIZE_BYTES = MAX_CHUNK_SIZE_MB * 1024 * 1024;
 const BUCKET = 'temp-audio';
 
@@ -129,7 +129,7 @@ export function useAudioProcessor() {
             await ffmpeg.exec([
               '-i', 'normalized.wav',
               '-f', 'segment',
-              '-segment_time', String(15 * 60),
+              '-segment_time', String(10 * 60),
               '-c', 'copy',
               'chunk_%03d.wav',
             ]);

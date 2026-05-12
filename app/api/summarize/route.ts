@@ -48,6 +48,11 @@ export async function POST(req: NextRequest) {
       response_format: { type: 'json_object' },
     });
 
+    // Log Usage
+    if (completion.usage) {
+      console.log(`[LLM Usage ${mode}]`, completion.usage);
+    }
+
     const rawContent = completion.choices[0]?.message?.content ?? '{}';
 
     let parsed: { summary: any; key_points: string[] };
@@ -103,6 +108,7 @@ export async function POST(req: NextRequest) {
       key_points: Array.isArray(parsed.key_points) ? parsed.key_points : [],
       full_transcript: fullTranscript,
       summary_id: summaryData?.id,
+      usage: completion.usage,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

@@ -17,6 +17,11 @@ export default function UploadZone({ onFile, disabled }: UploadZoneProps) {
 
   // Only stage the file — don't trigger processing yet
   const stageFile = useCallback((file: File) => {
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 300) {
+      alert('ไฟล์มีขนาดใหญ่เกินไป (สูงสุด 300MB) กรุณาใช้ไฟล์ที่เล็กลงเพื่อให้ระบบทำงานได้เสถียร');
+      return;
+    }
     setSelectedFile(file);
   }, []);
 
@@ -102,6 +107,9 @@ export default function UploadZone({ onFile, disabled }: UploadZoneProps) {
                 ลากไฟล์มาวางที่นี่
               </p>
               <p className="text-muted text-sm mt-1">หรือคลิกเพื่อเลือกไฟล์เสียง</p>
+              <p className="text-muted/60 text-[10px] mt-2 uppercase tracking-tight">
+                รองรับสูงสุด 300MB
+              </p>
             </>
           )}
         </div>

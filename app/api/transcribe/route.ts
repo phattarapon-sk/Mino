@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
 
     const audioBuffer = await fileData.arrayBuffer();
     const fileName = storagePath.split('/').pop() || 'audio.wav';
+    const CHUNK_DURATION = 10 * 60; // 10 minutes offset per part
 
     // 2. Send to Typhoon ASR
     const transcriptionResponse = await typhoon.audio.transcriptions.create({
@@ -37,11 +38,41 @@ export async function POST(req: NextRequest) {
       file: await toFile(new Blob([audioBuffer], { type: 'audio/wav' }), fileName, {
         type: 'audio/wav',
       }),
-    });
+      response_format: 'verbose_json',
+      language: 'th', // Force Thai for better accuracy
+      temperature: 0, // Most accurate
+      prompt: 'ประชุมธุรกิจ, ภาษาไทย, มีการพูดคุยเรื่องสรุปประเด็นสำคัญ, งาน QA, ทีมผลิต, การจัดการข้อมูล', // Help with context
+    }) as any;
 
-    const transcriptText = transcriptionResponse.text;
+    // Log Usage if available
+    if (transcriptionResponse.usage) {
+      console.log(`[ASR Usage Part ${partNumber}]`, transcriptionResponse.usage);
+    } else {
+      console.log(`[ASR Part ${partNumber}] Transcription complete (Usage not reported by API)`);
+    }
 
-    // 3. Save to transcript_segments
+    // 3. Process segments with timestamp offset
+    let transcriptText = '';
+    const offset = partNumber * CHUNK_DURATION;
+
+    if (transcriptionResponse.segments) {
+      transcriptText = transcriptionResponse.segments
+        .map((seg: any) => {
+          const start = seg.start + offset;
+          const h = Math.floor(start / 3600);
+          const m = Math.floor((start % 3600) / 60);
+          const s = Math.floor(start % 60);
+          const timeStr = h > 0 
+            ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+            : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+          return `[${timeStr}] ${seg.text}`;
+        })
+        .join('\n');
+    } else {
+      transcriptText = transcriptionResponse.text;
+    }
+
+    // 4. Save to transcript_segments
     const { error: insertError } = await admin
       .from('transcript_segments')
       .insert({
@@ -54,10 +85,10 @@ export async function POST(req: NextRequest) {
       throw new Error(`DB insert failed: ${insertError.message}`);
     }
 
-    // 4. Delete chunk from storage (cleanup)
+    // 5. Delete chunk from storage (cleanup)
     await admin.storage.from('temp-audio').remove([storagePath]);
 
-    // 5. Update job status
+    // 6. Update job status
     await admin
       .from('jobs')
       .update({ status: 'transcribing' })
@@ -66,6 +97,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       text: transcriptText,
       part_number: partNumber,
+      usage: transcriptionResponse.usage,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
